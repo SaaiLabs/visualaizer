@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZIA Traffic Inspection Simulator</title>
+<style>
+  * { box-sizing: border-box; }
+  body { 
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+    background-color: #0f172a; 
+    margin: 0; 
+    padding: 20px; 
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+  }
+  .sim-container { 
+    background: #1e293b; 
+    border: 1px solid #334155; 
+    border-radius: 12px; 
+    padding: 30px; 
+    width: 100%;
+    max-width: 900px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5); 
+  }
+  .sim-header { 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    margin-bottom: 25px; 
+    flex-wrap: wrap;
+    gap: 15px;
+  }
+  .sim-title { margin: 0; font-size: 1.5em; font-weight: bold; color: #f8fafc;}
+  .btn-group { display: flex; gap: 10px; flex-wrap: wrap;}
+  .btn { 
+    background: #38bdf8; color: #0f172a; border: none; padding: 10px 15px; 
+    border-radius: 6px; cursor: pointer; font-weight: bold; transition: all 0.2s;
+  }
+  .btn:hover { background: #7dd3fc; transform: translateY(-1px); }
+  .btn-danger { background: #ef4444; color: white; }
+  .btn-danger:hover { background: #f87171; }
+  .btn-warning { background: #f59e0b; color: #0f172a; }
+  .btn-warning:hover { background: #fbbf24; }
+  .btn-secondary { background: #475569; color: white; }
+  .btn-secondary:hover { background: #64748b; }
+  
+  .pipeline { 
+    display: flex; justify-content: space-between; align-items: center; 
+    position: relative; height: 180px; background: #0f172a; 
+    padding: 0 40px; border-radius: 8px; overflow: hidden; 
+    border: 1px solid #334155;
+  }
+  .node { 
+    z-index: 2; background: #334155; padding: 15px 20px; 
+    border-radius: 8px; text-align: center; border: 2px solid #475569; 
+    width: 140px; font-weight: 600; font-size: 0.9em; color: #f8fafc; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+  }
+  .node-zia { border-color: #38bdf8; background: #0c4a6e; width: 160px;}
+  
+  .packet { 
+    position: absolute; width: 24px; height: 24px; background: #22c55e; 
+    border-radius: 50%; top: 78px; left: 160px; 
+    transition: all 1s ease-in-out; opacity: 0; z-index: 10;
+    box-shadow: 0 0 10px rgba(34, 197, 94, 0.8);
+  }
+  
+  .log-panel { 
+    margin-top: 25px; background: #020617; color: #10b981; 
+    font-family: 'Courier New', Courier, monospace; padding: 15px; 
+    border-radius: 6px; height: 180px; overflow-y: auto; 
+    border: 1px solid #1e293b; font-size: 0.9em;
+  }
+  .log-entry { margin-bottom: 6px; border-bottom: 1px dashed #1e293b; padding-bottom: 6px;}
+  .log-error { color: #ef4444; }
+  .log-warn { color: #f59e0b; }
+  .log-system { color: #64748b; }
+  
+  .status-text { 
+    position: absolute; top: 20px; left: 50%; transform: translateX(-50%); 
+    font-weight: bold; color: #38bdf8; background: rgba(15, 23, 42, 0.8);
+    padding: 4px 12px; border-radius: 4px; font-size: 0.9em;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .line {
+    position: absolute; top: 90px; height: 2px; background: #334155; z-index: 1; width: calc(50% - 100px);
+  }
+  .line-left { left: 100px; }
+  .line-right { right: 100px; }
+</style>
+</head>
+<body>
+  <div class="sim-container">
+    <div class="sim-header">
+      <div class="sim-title">Interactive ZIA Simulator</div>
+      <div class="btn-group">
+        <button class="btn" onclick="simulate('safe')">Safe SaaS Access</button>
+        <button class="btn btn-danger" onclick="simulate('unreputed software')">Download unreputed software</button>
+        <button class="btn btn-warning" onclick="simulate('shadow')">Shadow IT Upload</button>
+        <button class="btn btn-secondary" onclick="resetSim()">Reset</button>
+      </div>
+    </div>
+    
+    <div class="pipeline" id="pipeline">
+      <div class="line line-left"></div>
+      <div class="line line-right"></div>
+      <div class="status-text" id="statusText">System Idle. Awaiting Traffic...</div>
+      <div class="node" id="nodeLaptop">Employee<br>Laptop<br><small style="color:#94a3b8; font-weight:normal;">Zscaler Client</small></div>
+      <div class="node node-zia" id="nodeZIA">ZIA Security<br>Cloud (ZEN)<br><small style="color:#7dd3fc; font-weight:normal;">Policy Engine</small></div>
+      <div class="node" id="nodeDest">Internet /<br>Destinations<br><small style="color:#94a3b8; font-weight:normal;">SaaS / Web</small></div>
+      <div class="packet" id="packet"></div>
+    </div>
+
+    <div class="log-panel" id="logPanel">
+      <div class="log-entry log-system" id="initLog">> SIEM/NSS Log Stream Initialized...</div>
+    </div>
+  </div>
+
+<script>
+  let isSimulating = false;
+  let simTimeout1, simTimeout2, simTimeout3, simTimeout4;
+
+  function log(msg, type='info') {
+    const panel = document.getElementById('logPanel');
+    const entry = document.createElement('div');
+    const timestamp = new Date().toISOString().split('T')[1].slice(0,-1);
+    
+    let colorClass = '';
+    if(type === 'error') colorClass = 'log-error';
+    if(type === 'warn') colorClass = 'log-warn';
+    if(type === 'system') colorClass = 'log-system';
+    
+    entry.className = 'log-entry ' + colorClass;
+    entry.textContent = `[${timestamp}] ${msg}`;
+    panel.prepend(entry);
+  }
+
+  function resetSim() {
+    // Stop ongoing animations
+    clearTimeout(simTimeout1);
+    clearTimeout(simTimeout2);
+    clearTimeout(simTimeout3);
+    clearTimeout(simTimeout4);
+    isSimulating = false;
+
+    // Reset visual state
+    const packet = document.getElementById('packet');
+    packet.style.transition = 'none';
+    packet.style.opacity = '0';
+    packet.style.left = '160px';
+    packet.style.transform = 'none';
+    
+    const status = document.getElementById('statusText');
+    status.textContent = 'System Idle. Awaiting Traffic...';
+    
+    // Clear logs
+    const panel = document.getElementById('logPanel');
+    panel.innerHTML = '<div class="log-entry log-system">> SIEM/NSS Log Stream Initialized...</div>';
+  }
+
+  function simulate(scenario) {
+    if (isSimulating) return;
+    isSimulating = true;
+    
+    const packet = document.getElementById('packet');
+    const status = document.getElementById('statusText');
+    
+    // Hard reset packet state before starting
+    packet.style.transition = 'none';
+    packet.style.left = '160px';
+    packet.style.transform = 'none';
+    packet.style.opacity = '1';
+    packet.style.background = '#22c55e';
+    packet.style.boxShadow = '0 0 10px rgba(34, 197, 94, 0.8)';
+    status.textContent = 'Agent Intercept: Encrypting & Forwarding to ZEN...';
+    
+    log(`Initiating flow: ${scenario.toUpperCase()} payload...`, 'system');
+    
+    // Force browser reflow to apply the un-transitioned starting position
+    void packet.offsetWidth;
+    
+    simTimeout1 = setTimeout(() => {
+      // Step 1: Move to ZIA
+      packet.style.transition = 'all 1s ease-in-out';
+      packet.style.left = '50%';
+      packet.style.transform = 'translateX(-50%)';
+      
+      simTimeout2 = setTimeout(() => {
+        // Step 2: Inspection at ZIA
+        status.textContent = 'ZEN: Terminating TLS. Inspecting Payload...';
+        packet.style.background = '#38bdf8';
+        packet.style.boxShadow = '0 0 15px rgba(56, 189, 248, 0.9)';
+        
+        simTimeout3 = setTimeout(() => {
+          // Step 3: Execution Output
+          if(scenario === 'safe') {
+            status.textContent = 'Policy Allowed. Re-encrypting & Forwarding.';
+            packet.style.left = 'calc(100% - 180px)';
+            packet.style.background = '#22c55e';
+            packet.style.boxShadow = '0 0 10px rgba(34, 197, 94, 0.8)';
+            log('ALLOW - 200 OK (Verified SaaS Context)', 'info');
+            
+            simTimeout4 = setTimeout(() => {
+              status.textContent = 'Transaction Complete.';
+              packet.style.opacity = '0';
+              isSimulating = false;
+            }, 1000);
+          } 
+          else if (scenario === 'unreputed software') {
+            status.textContent = 'ATP ALERT: unreputed software Signature Match!';
+            packet.style.background = '#ef4444';
+            packet.style.boxShadow = '0 0 20px rgba(239, 68, 68, 1)';
+            packet.style.transform = 'translateX(-50%) scale(2)';
+            packet.style.opacity = '0';
+            log('BLOCK - ATP: TCP Reset (unreputed software Hash Match Detected)', 'error');
+            isSimulating = false;
+          }
+          else if (scenario === 'shadow') {
+            status.textContent = 'CASB ALERT: Data Exfiltration to Unapproved App.';
+            packet.style.background = '#f59e0b';
+            packet.style.boxShadow = '0 0 20px rgba(245, 158, 11, 1)';
+            packet.style.transform = 'translateX(-50%) scale(0)';
+            packet.style.opacity = '0';
+            log('BLOCK - CASB: 403 Forbidden (Shadow IT Upload Prevented)', 'warn');
+            isSimulating = false;
+          }
+        }, 1200);
+      }, 1000);
+    }, 100);
+  }
+</script>
+</body>
+</html>
