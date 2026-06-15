@@ -66,6 +66,7 @@
   .btn-warning { background: #f59e0b; color: #0f172a; }
   .btn-danger { background: #ef4444; color: white; }
   .btn-purple { background: #a855f7; color: white; }
+  .btn-secondary { background: #475569; color: white; }
   
   .pipeline-wrapper {
     position: relative;
@@ -184,18 +185,17 @@
         <button class="btn btn-warning" onclick="simulate('wifi')">Bad Wi-Fi</button>
         <button class="btn btn-danger" onclick="simulate('isp')">ISP Routing Delay</button>
         <button class="btn btn-purple" onclick="simulate('app')">SaaS Outage</button>
+        <button class="btn btn-secondary" onclick="resetSim()">Reset</button>
     </div>
     
     <div class="pipeline-wrapper">
       <div class="status-text" id="statusText">Awaiting Telemetry Probes...</div>
       
       <div class="pipeline" id="pipeline">
-        <!-- Vertical Lines (Mobile) -->
         <div class="line-v line-1" id="vLine1"></div>
         <div class="line-v line-2" id="vLine2"></div>
         <div class="line-v line-3" id="vLine3"></div>
         
-        <!-- Horizontal Lines (Desktop) -->
         <div class="line-h line-h-1" id="hLine1" style="display:none;"></div>
         <div class="line-h line-h-2" id="hLine2" style="display:none;"></div>
         <div class="line-h line-h-3" id="hLine3" style="display:none;"></div>
@@ -216,6 +216,7 @@
 
 <script>
   let isSimulating = false;
+  let timeouts = [];
 
   function isDesktop() { return window.innerWidth >= 750; }
 
@@ -223,7 +224,6 @@
     const isDesk = isDesktop();
     const hLines = document.querySelectorAll('.line-h');
     
-    // Position lines dynamically
     if(isDesk) {
         hLines.forEach(l => l.style.display = 'block');
         const nodes = [document.getElementById('n1'), document.getElementById('n2'), document.getElementById('n3'), document.getElementById('n4')];
@@ -287,12 +287,31 @@
       document.getElementById(`hLine${index}`).style.background = color;
   }
 
+  function resetSim() {
+      timeouts.forEach(clearTimeout);
+      timeouts = [];
+      isSimulating = false;
+
+      resetLines();
+
+      const packet = document.getElementById('packet');
+      packet.style.transition = 'none';
+      packet.style.opacity = '0';
+
+      document.getElementById('statusText').textContent = 'Awaiting Telemetry Probes...';
+      const scoreVal = document.getElementById('scoreVal');
+      scoreVal.textContent = '--';
+      scoreVal.style.color = '#22c55e';
+
+      document.getElementById('logPanel').innerHTML = '<div class="log-entry log-system">> ZCC CloudPath Engine Initialized...</div>';
+  }
+
   function simulate(scenario) {
     if (isSimulating) return;
     isSimulating = true;
     
     resetLines();
-    setupLines(); // recalculate coords
+    setupLines();
     
     const packet = document.getElementById('packet');
     const status = document.getElementById('statusText');
@@ -303,7 +322,6 @@
         getCenterCoords('n3'), getCenterCoords('n4')
     ];
     
-    // Set initial state
     packet.style.transition = 'none';
     packet.style.top = coords[0].top + 'px';
     packet.style.left = coords[0].left + 'px';
@@ -315,14 +333,13 @@
     scoreVal.style.color = "#94a3b8";
     log(`Executing probe sequence for scenario: [${scenario.toUpperCase()}]`, 'system');
     
-    void packet.offsetWidth; // force reflow
+    void packet.offsetWidth;
     packet.style.transition = 'top 0.5s linear, left 0.5s linear, background 0.2s';
     
     let currentHop = 0;
     
     function nextHop() {
         if(currentHop >= 3) {
-            // Finish
             packet.style.opacity = '0';
             isSimulating = false;
             
@@ -354,8 +371,8 @@
         packet.style.top = coords[currentHop].top + 'px';
         packet.style.left = coords[currentHop].left + 'px';
         
-        setTimeout(() => {
-            if(currentHop === 1) { // Hop 1: Laptop -> Router
+        timeouts.push(setTimeout(() => {
+            if(currentHop === 1) { 
                 document.getElementById('m1').textContent = "CPU: 12%";
                 if(scenario === 'wifi') {
                     colorLine(1, '#f59e0b'); packet.style.background = '#f59e0b';
@@ -365,7 +382,7 @@
                     document.getElementById('m2').textContent = "Lat: 4ms";
                 }
             }
-            else if(currentHop === 2) { // Hop 2: Router -> ISP
+            else if(currentHop === 2) {
                 if(scenario === 'isp') {
                     colorLine(2, '#ef4444'); packet.style.background = '#ef4444';
                     document.getElementById('m3').textContent = "Lat: 850ms";
@@ -374,7 +391,7 @@
                     document.getElementById('m3').textContent = "Lat: 12ms";
                 }
             }
-            else if(currentHop === 3) { // Hop 3: ISP -> SaaS
+            else if(currentHop === 3) {
                 if(scenario === 'app') {
                     colorLine(3, '#a855f7'); packet.style.background = '#a855f7';
                 } else {
@@ -382,11 +399,10 @@
                 }
             }
             nextHop();
-        }, 600); // Wait for transition + pause
+        }, 600)); 
     }
     
-    // Start traversal
-    setTimeout(nextHop, 100);
+    timeouts.push(setTimeout(nextHop, 100));
   }
 </script>
 </body>
