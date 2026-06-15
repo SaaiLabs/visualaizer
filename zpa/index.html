@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZPA Zero Trust Simulator (Responsive)</title>
+<style>
+  * { box-sizing: border-box; }
+  body { 
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+    background-color: #0f172a; 
+    margin: 0; 
+    padding: 10px; 
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+  }
+  
+  .sim-container { 
+    background: #1e293b; 
+    border: 1px solid #334155; 
+    border-radius: 12px; 
+    padding: 20px; 
+    width: 100%;
+    max-width: 900px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5); 
+  }
+  
+  .sim-header { 
+    display: flex; 
+    flex-direction: column;
+    margin-bottom: 20px; 
+    gap: 15px;
+  }
+  .sim-title { margin: 0; font-size: 1.3em; font-weight: bold; color: #f8fafc; text-align: center;}
+  
+  .btn-group { 
+    display: flex; 
+    flex-wrap: wrap; 
+    gap: 8px; 
+    justify-content: center;
+  }
+  .btn { 
+    flex: 1 1 auto;
+    min-width: 120px;
+    background: #38bdf8; color: #0f172a; border: none; padding: 10px; 
+    border-radius: 6px; cursor: pointer; font-weight: bold; transition: all 0.2s;
+    font-size: 0.85em;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn-primary { background: #10b981; color: white; }
+  .btn-danger { background: #ef4444; color: white; }
+  .btn-warning { background: #f59e0b; color: #0f172a; }
+  .btn-secondary { background: #475569; color: white; }
+  
+  .pipeline-wrapper {
+    position: relative;
+    background: #0f172a;
+    border-radius: 8px;
+    border: 1px solid #334155;
+    padding: 20px;
+    margin-bottom: 20px;
+    min-height: 300px;
+  }
+
+  .status-text { 
+    text-align: center;
+    font-weight: bold; color: #a78bfa; 
+    background: rgba(15, 23, 42, 0.9);
+    padding: 8px; border-radius: 4px; font-size: 0.9em;
+    margin-bottom: 20px;
+    min-height: 36px;
+  }
+
+  .pipeline { 
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    position: relative; 
+    gap: 40px;
+  }
+
+  .node { 
+    z-index: 2; background: #334155; padding: 12px; 
+    border-radius: 8px; text-align: center; border: 2px solid #475569; 
+    width: 100%; max-width: 220px;
+    font-weight: 600; font-size: 0.9em; color: #f8fafc; 
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+  }
+  .node-cloud { border-color: #a78bfa; background: #4c1d95; }
+  .node-internal { border-color: #10b981; background: #064e3b; border-style: dashed;}
+  
+  /* Packet Animation Elements */
+  .packet { 
+    position: absolute; width: 16px; height: 16px; background: #22c55e; 
+    border-radius: 50%; opacity: 0; z-index: 10;
+    box-shadow: 0 0 10px rgba(34, 197, 94, 0.8);
+    transition: top 0.6s ease, left 0.6s ease, transform 0.3s, background 0.3s;
+    left: 50%; transform: translate(-50%, -50%);
+  }
+  
+  /* Connecting Lines */
+  .line-v {
+    position: absolute;
+    width: 2px; background: #334155;
+    left: 50%; transform: translateX(-50%);
+    z-index: 0;
+  }
+  .line-top { top: 40px; height: 70px; border-left: 2px dotted #a78bfa; background: transparent; }
+  .line-bottom { top: 160px; height: 70px; border-left: 2px dotted #10b981; background: transparent;}
+  
+  @media (min-width: 700px) {
+    .sim-header { flex-direction: row; justify-content: space-between; }
+    .sim-title { text-align: left; }
+    .btn-group { justify-content: flex-end; }
+    .btn { min-width: auto; }
+    
+    .pipeline { 
+      flex-direction: row; 
+      justify-content: space-between;
+      height: 180px;
+      gap: 0;
+    }
+    .node { width: 160px; }
+    
+    .line-v { display: none; }
+    .line-h {
+        position: absolute; top: 50%; height: 2px; z-index: 0; width: calc(50% - 100px);
+    }
+    .line-left { left: 100px; border-top: 2px dotted #a78bfa;}
+    .line-right { right: 100px; border-top: 2px dotted #10b981;}
+  }
+
+  .log-panel { 
+    background: #020617; color: #10b981; 
+    font-family: 'Courier New', Courier, monospace; padding: 12px; 
+    border-radius: 6px; height: 160px; overflow-y: auto; 
+    border: 1px solid #1e293b; font-size: 0.8em;
+  }
+  .log-entry { margin-bottom: 6px; border-bottom: 1px dashed #1e293b; padding-bottom: 6px; word-break: break-all;}
+  .log-error { color: #ef4444; }
+  .log-warn { color: #f59e0b; }
+  .log-system { color: #64748b; }
+  .log-purple { color: #c084fc; }
+</style>
+</head>
+<body>
+  <div class="sim-container">
+    <div class="sim-header">
+      <div class="sim-title">ZPA Zero Trust Architecture</div>
+      <div class="btn-group">
+        <button class="btn btn-primary" onclick="simulate('auth')">Auth: HR Portal</button>
+        <button class="btn btn-warning" onclick="simulate('deny')">Deny: Finance App</button>
+        <button class="btn btn-danger" onclick="simulate('scan')">Lateral Ping Scan</button>
+        <button class="btn btn-secondary" onclick="resetSim()">Reset</button>
+      </div>
+    </div>
+    
+    <div class="pipeline-wrapper">
+      <div class="status-text" id="statusText">System Idle. Darknet Active.</div>
+      
+      <div class="pipeline" id="pipeline">
+        <div class="line-v line-top"></div>
+        <div class="line-v line-bottom"></div>
+        <div class="line-h line-left" style="display:none;"></div>
+        <div class="line-h line-right" style="display:none;"></div>
+
+        <div class="node" id="nodeLaptop">Remote Endpoint<br><small style="color:#94a3b8; font-weight:normal;">Zscaler Client</small></div>
+        <div class="node node-cloud" id="nodeZPA">ZPA Broker<br><small style="color:#ddd6fe; font-weight:normal;">Policy Engine</small></div>
+        <div class="node node-internal" id="nodeDest">Internal Data Center<br><small style="color:#6ee7b7; font-weight:normal;">App Connector + Apps</small></div>
+        
+        <div class="packet" id="packetClient"></div>
+        <div class="packet" id="packetConnector"></div>
+      </div>
+    </div>
+
+    <div class="log-panel" id="logPanel">
+      <div class="log-entry log-system">> ZPA Broker Initialized. Listening for Outbound Tunnels...</div>
+    </div>
+  </div>
+
+<script>
+  let isSimulating = false;
+  let timeouts = [];
+
+  function isDesktop() { return window.innerWidth >= 700; }
+
+  window.addEventListener('resize', setupLines);
+  document.addEventListener('DOMContentLoaded', setupLines);
+
+  function setupLines() {
+    const lines = document.querySelectorAll('.line-h');
+    if(isDesktop()) { lines.forEach(l => l.style.display = 'block'); } 
+    else { lines.forEach(l => l.style.display = 'none'); }
+  }
+
+  function log(msg, type='info') {
+    const panel = document.getElementById('logPanel');
+    const entry = document.createElement('div');
+    const timestamp = new Date().toISOString().split('T')[1].slice(0,-1);
+    
+    let colorClass = '';
+    if(type === 'error') colorClass = 'log-error';
+    if(type === 'warn') colorClass = 'log-warn';
+    if(type === 'system') colorClass = 'log-system';
+    if(type === 'purple') colorClass = 'log-purple';
+    
+    entry.className = 'log-entry ' + colorClass;
+    entry.textContent = `[${timestamp}] ${msg}`;
+    panel.prepend(entry);
+  }
+
+  function getCenterCoords(elementId) {
+    const el = document.getElementById(elementId);
+    const parent = document.getElementById('pipeline');
+    const elRect = el.getBoundingClientRect();
+    const parentRect = parent.getBoundingClientRect();
+    return {
+        top: (elRect.top - parentRect.top) + (elRect.height / 2),
+        left: (elRect.left - parentRect.left) + (elRect.width / 2)
+    };
+  }
+
+  function resetSim() {
+    timeouts.forEach(clearTimeout);
+    timeouts = [];
+    isSimulating = false;
+
+    const pClient = document.getElementById('packetClient');
+    const pConn = document.getElementById('packetConnector');
+    
+    pClient.style.transition = 'none'; pClient.style.opacity = '0';
+    pConn.style.transition = 'none'; pConn.style.opacity = '0';
+    
+    document.getElementById('statusText').textContent = 'System Idle. Darknet Active.';
+    document.getElementById('logPanel').innerHTML = '<div class="log-entry log-system">> ZPA Broker Initialized. Listening for Outbound Tunnels...</div>';
+  }
+
+  function simulate(scenario) {
+    if (isSimulating) return;
+    isSimulating = true;
+    
+    const pClient = document.getElementById('packetClient');
+    const pConn = document.getElementById('packetConnector');
+    const status = document.getElementById('statusText');
+    
+    const posLaptop = getCenterCoords('nodeLaptop');
+    const posZPA = getCenterCoords('nodeZPA');
+    const posDest = getCenterCoords('nodeDest');
+    
+    // Reset packets
+    pClient.style.transition = 'none'; pClient.style.opacity = '1';
+    pClient.style.top = posLaptop.top + 'px'; pClient.style.left = posLaptop.left + 'px';
+    pClient.style.background = '#38bdf8'; pClient.style.boxShadow = '0 0 10px #38bdf8';
+    
+    pConn.style.transition = 'none'; pConn.style.opacity = '0';
+    pConn.style.top = posDest.top + 'px'; pConn.style.left = posDest.left + 'px';
+    pConn.style.background = '#10b981'; pConn.style.boxShadow = '0 0 10px #10b981';
+    
+    void pClient.offsetWidth; void pConn.offsetWidth; // Reflow
+    
+    if (scenario === 'scan') {
+        status.textContent = 'Endpoint attempts lateral ping sweep (10.0.0.0/8)...';
+        log('Local ZCC intercepting ICMP traffic...', 'system');
+        
+        pClient.style.transition = 'all 0.4s ease';
+        pClient.style.transform = 'translate(-50%, -50%) scale(1.5)';
+        pClient.style.background = '#ef4444';
+        
+        timeouts.push(setTimeout(() => {
+            status.textContent = 'DROPPED: No network route exists.';
+            pClient.style.opacity = '0';
+            log('BLOCK - Routing Failed. Network is invisible (Darknet).', 'error');
+            isSimulating = false;
+        }, 800));
+        return;
+    }
+
+    // Auth & Deny flows
+    status.textContent = '1. Client establishes TLS tunnel to ZPA Broker...';
+    log(`Client requesting DNS resolution for internal app...`, 'system');
+    
+    pClient.style.transition = 'top 0.6s ease, left 0.6s ease';
+    timeouts.push(setTimeout(() => {
+      pClient.style.top = posZPA.top + 'px';
+      pClient.style.left = posZPA.left + 'px';
+      
+      timeouts.push(setTimeout(() => {
+        if(scenario === 'deny') {
+            status.textContent = '2. Policy Engine evaluates Context. Access Denied.';
+            pClient.style.background = '#f59e0b'; pClient.style.boxShadow = '0 0 20px #f59e0b';
+            pClient.style.transform = 'translate(-50%, -50%) scale(0)';
+            log('BLOCK - SAML Identity not authorized for Finance Application.', 'warn');
+            isSimulating = false;
+            return;
+        }
+        
+        // Success Flow
+        status.textContent = '2. Auth Success. Broker signals App Connector...';
+        log('Identity Verified. CA triggering App Connector...', 'purple');
+        
+        timeouts.push(setTimeout(() => {
+            status.textContent = '3. App Connector dials OUT to Broker...';
+            pConn.style.opacity = '1';
+            pConn.style.transition = 'top 0.6s ease, left 0.6s ease';
+            log('App Connector establishing outbound TLS Microtunnel...', 'system');
+            
+            timeouts.push(setTimeout(() => {
+                pConn.style.top = posZPA.top + 'px';
+                pConn.style.left = posZPA.left + 'px';
+                
+                timeouts.push(setTimeout(() => {
+                    status.textContent = '4. Broker stitches connections. Data flowing.';
+                    pClient.style.background = '#c084fc'; pClient.style.boxShadow = '0 0 15px #c084fc';
+                    pConn.style.background = '#c084fc'; pConn.style.boxShadow = '0 0 15px #c084fc';
+                    log('SUCCESS - Tunnels stitched. App access granted securely.', 'info');
+                    
+                    timeouts.push(setTimeout(() => {
+                        pClient.style.opacity = '0'; pConn.style.opacity = '0';
+                        status.textContent = 'Session Established.';
+                        isSimulating = false;
+                    }, 1200));
+                }, 800));
+            }, 100));
+        }, 1000));
+      }, 800));
+    }, 100));
+  }
+</script>
+</body>
+</html>
