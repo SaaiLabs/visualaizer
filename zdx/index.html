@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZDX Digital Experience Simulator (Responsive)</title>
+<style>
+  * { box-sizing: border-box; }
+  body { 
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+    background-color: #0f172a; 
+    margin: 0; 
+    padding: 10px; 
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+  }
+  
+  .sim-container { 
+    background: #1e293b; 
+    border: 1px solid #334155; 
+    border-radius: 12px; 
+    padding: 20px; 
+    width: 100%;
+    max-width: 900px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5); 
+  }
+  
+  .sim-header { 
+    display: flex; 
+    flex-direction: column;
+    margin-bottom: 20px; 
+    gap: 15px;
+  }
+  .sim-title { margin: 0; font-size: 1.3em; font-weight: bold; color: #f8fafc; text-align: center;}
+  
+  .zdx-score {
+      background: #020617;
+      padding: 10px 20px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0 auto;
+      width: max-content;
+  }
+  .score-val { font-size: 1.5em; font-weight: bold; color: #22c55e; transition: color 0.3s;}
+
+  .btn-group { 
+    display: flex; 
+    flex-wrap: wrap; 
+    gap: 8px; 
+    justify-content: center;
+  }
+  .btn { 
+    flex: 1 1 auto;
+    min-width: 120px;
+    background: #38bdf8; color: #0f172a; border: none; padding: 10px; 
+    border-radius: 6px; cursor: pointer; font-weight: bold; transition: all 0.2s;
+    font-size: 0.85em;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn-success { background: #22c55e; color: #0f172a; }
+  .btn-warning { background: #f59e0b; color: #0f172a; }
+  .btn-danger { background: #ef4444; color: white; }
+  .btn-purple { background: #a855f7; color: white; }
+  
+  .pipeline-wrapper {
+    position: relative;
+    background: #0f172a;
+    border-radius: 8px;
+    border: 1px solid #334155;
+    padding: 20px 20px 40px 20px;
+    margin-bottom: 20px;
+  }
+
+  .status-text { 
+    text-align: center;
+    font-weight: bold; color: #38bdf8; 
+    background: rgba(15, 23, 42, 0.9);
+    padding: 8px; border-radius: 4px; font-size: 0.9em;
+    margin-bottom: 30px;
+    min-height: 36px;
+  }
+
+  .pipeline { 
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    position: relative; 
+    gap: 40px;
+  }
+
+  .node { 
+    z-index: 2; background: #334155; padding: 12px; 
+    border-radius: 8px; text-align: center; border: 2px solid #475569; 
+    width: 100%; max-width: 150px;
+    font-weight: 600; font-size: 0.8em; color: #f8fafc; 
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    position: relative;
+  }
+  
+  .metric {
+      position: absolute;
+      bottom: -25px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.85em;
+      color: #94a3b8;
+      white-space: nowrap;
+      background: #020617;
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid #1e293b;
+  }
+
+  /* Packet Animation Elements */
+  .packet { 
+    position: absolute; width: 14px; height: 14px; background: #38bdf8; 
+    border-radius: 50%; opacity: 0; z-index: 10;
+    box-shadow: 0 0 10px #38bdf8;
+    transition: top 0.4s linear, left 0.4s linear, background 0.2s;
+    left: 50%; transform: translate(-50%, -50%);
+  }
+  
+  /* Connecting Lines */
+  .line-v {
+    position: absolute;
+    width: 4px; background: #334155;
+    left: 50%; transform: translateX(-50%);
+    z-index: 0; transition: background 0.3s;
+  }
+  .line-1 { top: 40px; height: 50px; }
+  .line-2 { top: 120px; height: 50px; }
+  .line-3 { top: 200px; height: 50px; }
+  
+  @media (min-width: 750px) {
+    .sim-header { flex-direction: row; justify-content: space-between; align-items: center;}
+    .sim-title { text-align: left; }
+    .zdx-score { margin: 0; }
+    .btn-group { justify-content: flex-end; width: 100%; margin-top: 10px;}
+    
+    .pipeline { 
+      flex-direction: row; 
+      justify-content: space-between;
+      height: 100px;
+      gap: 0;
+    }
+    
+    .line-v { display: none; }
+    .line-h {
+        position: absolute; top: 50%; height: 4px; z-index: 0; background: #334155; transition: background 0.3s;
+    }
+    .line-h-1 { left: 80px; width: calc(25vw - 120px); max-width: 100px; }
+    .line-h-2 { left: 280px; width: calc(25vw - 120px); max-width: 100px; }
+    .line-h-3 { left: 480px; width: calc(25vw - 120px); max-width: 100px; }
+  }
+
+  .log-panel { 
+    background: #020617; color: #10b981; 
+    font-family: 'Courier New', Courier, monospace; padding: 12px; 
+    border-radius: 6px; height: 160px; overflow-y: auto; 
+    border: 1px solid #1e293b; font-size: 0.8em;
+  }
+  .log-entry { margin-bottom: 6px; border-bottom: 1px dashed #1e293b; padding-bottom: 6px; word-break: break-all;}
+  .log-error { color: #ef4444; }
+  .log-warn { color: #f59e0b; }
+  .log-system { color: #64748b; }
+</style>
+</head>
+<body>
+  <div class="sim-container">
+    <div class="sim-header">
+      <div class="sim-title">ZDX CloudPath Trace</div>
+      <div class="zdx-score">
+          <span style="color:#94a3b8; font-size:0.8em; text-transform:uppercase;">ZDX Score:</span>
+          <span class="score-val" id="scoreVal">--</span>
+      </div>
+    </div>
+    <div class="btn-group">
+        <button class="btn btn-success" onclick="simulate('healthy')">Healthy Path</button>
+        <button class="btn btn-warning" onclick="simulate('wifi')">Bad Wi-Fi</button>
+        <button class="btn btn-danger" onclick="simulate('isp')">ISP Routing Delay</button>
+        <button class="btn btn-purple" onclick="simulate('app')">SaaS Outage</button>
+    </div>
+    
+    <div class="pipeline-wrapper">
+      <div class="status-text" id="statusText">Awaiting Telemetry Probes...</div>
+      
+      <div class="pipeline" id="pipeline">
+        <!-- Vertical Lines (Mobile) -->
+        <div class="line-v line-1" id="vLine1"></div>
+        <div class="line-v line-2" id="vLine2"></div>
+        <div class="line-v line-3" id="vLine3"></div>
+        
+        <!-- Horizontal Lines (Desktop) -->
+        <div class="line-h line-h-1" id="hLine1" style="display:none;"></div>
+        <div class="line-h line-h-2" id="hLine2" style="display:none;"></div>
+        <div class="line-h line-h-3" id="hLine3" style="display:none;"></div>
+
+        <div class="node" id="n1">1. Endpoint<div class="metric" id="m1">CPU: --</div></div>
+        <div class="node" id="n2">2. Local Wi-Fi<div class="metric" id="m2">Lat: --</div></div>
+        <div class="node" id="n3">3. Regional ISP<div class="metric" id="m3">Lat: --</div></div>
+        <div class="node" id="n4">4. Destination App<div class="metric" id="m4">TTFB: --</div></div>
+        
+        <div class="packet" id="packet"></div>
+      </div>
+    </div>
+
+    <div class="log-panel" id="logPanel">
+      <div class="log-entry log-system">> ZCC CloudPath Engine Initialized...</div>
+    </div>
+  </div>
+
+<script>
+  let isSimulating = false;
+
+  function isDesktop() { return window.innerWidth >= 750; }
+
+  function setupLines() {
+    const isDesk = isDesktop();
+    const hLines = document.querySelectorAll('.line-h');
+    
+    // Position lines dynamically
+    if(isDesk) {
+        hLines.forEach(l => l.style.display = 'block');
+        const nodes = [document.getElementById('n1'), document.getElementById('n2'), document.getElementById('n3'), document.getElementById('n4')];
+        const parentRect = document.getElementById('pipeline').getBoundingClientRect();
+        
+        for(let i=0; i<3; i++) {
+            const r1 = nodes[i].getBoundingClientRect();
+            const r2 = nodes[i+1].getBoundingClientRect();
+            const left = (r1.right - parentRect.left);
+            const width = (r2.left - r1.right);
+            document.getElementById(`hLine${i+1}`).style.left = `${left}px`;
+            document.getElementById(`hLine${i+1}`).style.width = `${width}px`;
+        }
+    } else {
+        hLines.forEach(l => l.style.display = 'none');
+    }
+  }
+
+  window.addEventListener('resize', setupLines);
+  document.addEventListener('DOMContentLoaded', setupLines);
+
+  function log(msg, type='info') {
+    const panel = document.getElementById('logPanel');
+    const entry = document.createElement('div');
+    const timestamp = new Date().toISOString().split('T')[1].slice(0,-1);
+    
+    let colorClass = '';
+    if(type === 'error') colorClass = 'log-error';
+    if(type === 'warn') colorClass = 'log-warn';
+    if(type === 'system') colorClass = 'log-system';
+    
+    entry.className = 'log-entry ' + colorClass;
+    entry.textContent = `[${timestamp}] ${msg}`;
+    panel.prepend(entry);
+  }
+
+  function getCenterCoords(elementId) {
+    const el = document.getElementById(elementId);
+    const parent = document.getElementById('pipeline');
+    const elRect = el.getBoundingClientRect();
+    const parentRect = parent.getBoundingClientRect();
+    return {
+        top: (elRect.top - parentRect.top) + (elRect.height / 2),
+        left: (elRect.left - parentRect.left) + (elRect.width / 2)
+    };
+  }
+  
+  function resetLines() {
+      for(let i=1; i<=3; i++) {
+          document.getElementById(`vLine${i}`).style.background = '#334155';
+          document.getElementById(`hLine${i}`).style.background = '#334155';
+      }
+      document.getElementById('m1').textContent = "CPU: --";
+      document.getElementById('m2').textContent = "Lat: --";
+      document.getElementById('m3').textContent = "Lat: --";
+      document.getElementById('m4').textContent = "TTFB: --";
+  }
+
+  function colorLine(index, color) {
+      document.getElementById(`vLine${index}`).style.background = color;
+      document.getElementById(`hLine${index}`).style.background = color;
+  }
+
+  function simulate(scenario) {
+    if (isSimulating) return;
+    isSimulating = true;
+    
+    resetLines();
+    setupLines(); // recalculate coords
+    
+    const packet = document.getElementById('packet');
+    const status = document.getElementById('statusText');
+    const scoreVal = document.getElementById('scoreVal');
+    
+    const coords = [
+        getCenterCoords('n1'), getCenterCoords('n2'), 
+        getCenterCoords('n3'), getCenterCoords('n4')
+    ];
+    
+    // Set initial state
+    packet.style.transition = 'none';
+    packet.style.top = coords[0].top + 'px';
+    packet.style.left = coords[0].left + 'px';
+    packet.style.opacity = '1';
+    packet.style.background = '#38bdf8';
+    
+    status.textContent = 'ZCC initiating CloudPath synthetic probes...';
+    scoreVal.textContent = "CALC...";
+    scoreVal.style.color = "#94a3b8";
+    log(`Executing probe sequence for scenario: [${scenario.toUpperCase()}]`, 'system');
+    
+    void packet.offsetWidth; // force reflow
+    packet.style.transition = 'top 0.5s linear, left 0.5s linear, background 0.2s';
+    
+    let currentHop = 0;
+    
+    function nextHop() {
+        if(currentHop >= 3) {
+            // Finish
+            packet.style.opacity = '0';
+            isSimulating = false;
+            
+            if(scenario === 'healthy') {
+                scoreVal.textContent = "98"; scoreVal.style.color = "#22c55e";
+                status.textContent = 'End-to-End Experience: EXCELLENT';
+                document.getElementById('m4').textContent = "TTFB: 45ms";
+                log('SUCCESS: Application responding optimally.', 'info');
+            } else if (scenario === 'wifi') {
+                scoreVal.textContent = "42"; scoreVal.style.color = "#f59e0b";
+                status.textContent = 'Bottleneck Identified: Local Device/Wi-Fi';
+                document.getElementById('m4').textContent = "TTFB: 800ms";
+                log('WARN: High latency detected at first hop. End user experience degraded.', 'warn');
+            } else if (scenario === 'isp') {
+                scoreVal.textContent = "21"; scoreVal.style.color = "#ef4444";
+                status.textContent = 'Bottleneck Identified: Transit Network (ISP)';
+                document.getElementById('m4').textContent = "TTFB: 1200ms";
+                log('ERROR: Severe routing delay detected at ISP tier.', 'error');
+            } else if (scenario === 'app') {
+                scoreVal.textContent = "15"; scoreVal.style.color = "#a855f7";
+                status.textContent = 'Bottleneck Identified: Destination Application';
+                document.getElementById('m4').textContent = "TTFB: 3500ms";
+                log('ERROR: SaaS Backend struggling. Network is healthy.', 'error');
+            }
+            return;
+        }
+        
+        currentHop++;
+        packet.style.top = coords[currentHop].top + 'px';
+        packet.style.left = coords[currentHop].left + 'px';
+        
+        setTimeout(() => {
+            if(currentHop === 1) { // Hop 1: Laptop -> Router
+                document.getElementById('m1').textContent = "CPU: 12%";
+                if(scenario === 'wifi') {
+                    colorLine(1, '#f59e0b'); packet.style.background = '#f59e0b';
+                    document.getElementById('m2').textContent = "Lat: 450ms";
+                } else {
+                    colorLine(1, '#22c55e');
+                    document.getElementById('m2').textContent = "Lat: 4ms";
+                }
+            }
+            else if(currentHop === 2) { // Hop 2: Router -> ISP
+                if(scenario === 'isp') {
+                    colorLine(2, '#ef4444'); packet.style.background = '#ef4444';
+                    document.getElementById('m3').textContent = "Lat: 850ms";
+                } else {
+                    colorLine(2, '#22c55e');
+                    document.getElementById('m3').textContent = "Lat: 12ms";
+                }
+            }
+            else if(currentHop === 3) { // Hop 3: ISP -> SaaS
+                if(scenario === 'app') {
+                    colorLine(3, '#a855f7'); packet.style.background = '#a855f7';
+                } else {
+                    colorLine(3, '#22c55e');
+                }
+            }
+            nextHop();
+        }, 600); // Wait for transition + pause
+    }
+    
+    // Start traversal
+    setTimeout(nextHop, 100);
+  }
+</script>
+</body>
+</html>
